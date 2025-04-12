@@ -131,7 +131,7 @@ export default function DialerApp() {
       <div className="w-full max-w-md bg-white rounded-3xl shadow-lg overflow-hidden">
         {isCallActive ? (
           <div className="fixed inset-0 flex flex-col items-center justify-center bg-white">
-            <div className="text-2xl font-bold mb-2">KTUN</div>
+            <div className="text-2xl font-bold mb-2">YoCop</div>
             <div className="text-green-500 mb-4">
               {isRecording ? "Recording..." : "Call connected"}
             </div>
@@ -166,7 +166,6 @@ export default function DialerApp() {
                 <Button
                   key={num}
                   onClick={() => handleNumberClick(num.toString())}
-                  variant="ghost"
                   className="rounded-full h-16 w-16 text-2xl font-medium mx-auto"
                   disabled={isProcessing}
                 >
@@ -188,7 +187,6 @@ export default function DialerApp() {
 
               <Button
                 onClick={handleDeleteClick}
-                variant="ghost"
                 className="rounded-full w-16 h-16 flex items-center justify-center ml-auto"
                 disabled={isProcessing}
               >

@@ -1,185 +1,206 @@
+// patrol_bot.js
+
 import { config } from "dotenv";
 import TelegramBot from "node-telegram-bot-api";
-import axios from "axios";
+import fetch from "node-fetch";
 
-config();
+config(); // Load environment variables from .env
 
 const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
-
 const userStates = {};
+
+console.log("✅ YoCop Bot is running... Waiting for messages...");
 
 // /start command
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
-  userStates[chatId] = { step: "ASK_WALLET" };
+  userStates[chatId] = { step: "ASK_PHONE" };
+  console.log(`🟢 /start triggered by Chat ID: ${chatId}`);
 
-  bot.sendMessage(chatId, "Welcome! Please enter your wallet address:");
+  bot.sendMessage(chatId, "👮 Welcome to the YoCop Patrol Bot!\n\nPlease share your phone number:", {
+    reply_markup: {
+      keyboard: [[{
+        text: "📲 Share Contact",
+        request_contact: true
+      }]],
+      resize_keyboard: true,
+      one_time_keyboard: true
+    }
+  });
 });
 
-// Handle all messages
+// /help command
+bot.onText(/\/help/, (msg) => {
+  const chatId = msg.chat.id;
+  console.log(`ℹ️ /help requested by Chat ID: ${chatId}`);
+  bot.sendMessage(chatId, "🆘 Help Menu:\n/start - Start Bot\n/help - Get Help\n/report - Report Incident");
+});
+
+// /report command
+bot.onText(/\/report/, (msg) => {
+  const chatId = msg.chat.id;
+  console.log(`🚨 /report requested by Chat ID: ${chatId}`);
+  bot.sendMessage(chatId, "🚨 Please describe the incident you want to report.");
+});
+
+// Handle contact (phone number)
+bot.on("contact", (msg) => {
+  const chatId = msg.chat.id;
+  const contact = msg.contact;
+
+  if (!userStates[chatId] || userStates[chatId].step !== "ASK_PHONE") return;
+
+  userStates[chatId].phone = contact.phone_number;
+  userStates[chatId].step = "MAIN_MENU";
+
+  console.log(`✅ Phone number saved for Chat ID ${chatId}: ${contact.phone_number}`);
+
+  bot.sendMessage(chatId, `✅ Phone number confirmed: ${contact.phone_number}`, {
+    reply_markup: {
+      keyboard: [["Show All Complaints", "Track Complaint"]],
+      resize_keyboard: true,
+      one_time_keyboard: true
+    }
+  });
+});
+
+// Main message handler
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
-  const text = msg.text;
+  const text = msg.text?.trim();
   const state = userStates[chatId];
 
-  // Skip messages if no active session
-  if (!state) return;
+  if (!state || text.startsWith("/")) return;
 
   switch (state.step) {
-    case "ASK_WALLET":
-      if (/^0x[a-fA-F0-9]{40}$/.test(text)) {
-        state.wallet = text;
-        state.step = "MAIN_MENU";
-
-        bot.sendMessage(chatId, `✅ Wallet confirmed: ${text}`, {
-          reply_markup: {
-            keyboard: [["Show All Complaints", "Track Complaint"]],
-            resize_keyboard: true,
-          },
-        });
-      } else {
-        bot.sendMessage(chatId, "❌ Invalid wallet. Try again.");
-      }
-      break;
-
     case "MAIN_MENU":
       if (text === "Show All Complaints") {
+        console.log(`📄 Fetching complaints for phone ${state.phone}`);
         try {
-          console.log('in')
-
-          const response = await fetch('http://localhost:5000/getcomplaints', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify()
+          const response = await fetch("http://localhost:5000/getcomplaints", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ phone: state.phone })
           });
-          console.log('in')
-          const data = await response.json();
-          let complaints = [];
 
-          if (data.error) {
-            throw new Error(data.error);
-          } else if (data.data) {
-            complaints = Array.isArray(data.data) ? data.data : [data.data];
-            
-             const formattedComplaints = complaints.map(rawComplaint => {
-                     let complaint;
-                 
-                     // Parse the string to an actual object
-                     try {
-                       // Replace backticks or incorrect quotes if needed
-                       const sanitized = rawComplaint
-                         .replace(/`/g, '')               // Remove backticks
-                         .replace(/'/g, '"');             // Replace single quotes with double quotes
-                 
-                       complaint = JSON.parse(sanitized);
-                     } catch (err) {
-                       console.error('Failed to parse complaint:', rawComplaint, err);
-                       return '';
-                     }
-                 
-                     return Object.entries(complaint)
-                       .map(([key, value]) => `${key}: ${value}`)
-                       .join('\n');
-                   }).join('\n\n---');
-                 
-                   bot.sendMessage(chatId, `Your complaints:\n\n${formattedComplaints}`);
+          const result = await response.json();
+
+          if (!result || !result.data || result.error) {
+            throw new Error(result?.error || "No data received");
           }
 
-          // if (!complaints.length) {
-          //   bot.sendMessage(chatId, "You have no complaints.");
-          // } else {
-          //   const formatted = complaints
-          //     .map((c, i) => `🔹 ID: ${c.id} - ${c.title || "No Title"}`)
-          //     .join("\n");
-          //   bot.sendMessage(chatId, `📄 Complaints:\n\n${formatted}`);
-          // }
-        } catch (err) {
-          bot.sendMessage(chatId, "⚠️ Failed to fetch complaints.");
+          const complaints = Array.isArray(result.data) ? result.data : [result.data];
+
+          let message = "";
+
+          for (const item of complaints) {
+            let json;
+            try {
+              json = typeof item === "string"
+                ? JSON.parse(item.replace(/`/g, "").replace(/'/g, '"'))
+                : item;
+            } catch {
+              message += "⚠️ Failed to parse complaint.\n\n";
+              continue;
+            }
+
+            const {
+              trackingId,
+              locationAddress,
+              description,
+              contactName,
+              contactEmail,
+              createdAt,
+              PoliceAssigned,
+              PoliceDispatched,
+              PoliceArrived,
+              Resolved,
+              ipfsHash
+            } = json;
+
+            message += `🆔 Complaint ID: ${trackingId}\n📍 Location: ${locationAddress}\n📄 Description: ${description}\n📞 Contact: ${contactName} (${contactEmail})\n🕒 Created: ${new Date(createdAt).toLocaleString()}\n\n✅ Status:\n- Police Assigned: ${PoliceAssigned ? '✅' : '❌'}\n- Police Dispatched: ${PoliceDispatched ? '✅' : '❌'}\n- Police Arrived: ${PoliceArrived ? '✅' : '❌'}\n- Resolved: ${Resolved ? '✅' : '❌'}\n`;
+
+            if (ipfsHash) {
+              message += `🔗 View Evidence: https://ipfs.io/ipfs/${ipfsHash}\n`;
+            }
+
+            message += "\n---\n\n";
+          }
+
+          bot.sendMessage(chatId, message || "✅ You have no complaints.");
+        } catch (error) {
+          console.error("❌ Fetch error:", error.message);
+          bot.sendMessage(chatId, "⚠️ Unable to fetch complaints at the moment.");
         }
+
       } else if (text === "Track Complaint") {
         state.step = "AWAITING_ID";
-        bot.sendMessage(chatId, "📨 Enter the complaint ID to track:");
+        bot.sendMessage(chatId, "🔍 Please enter the complaint ID to track:");
+      } else {
+        bot.sendMessage(chatId, "❓ Please choose an option from the menu.");
       }
       break;
 
     case "AWAITING_ID":
       try {
-        const response = await fetch('http://localhost:5000/getcomplaint', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(text)
+        console.log(`🔎 Tracking complaint ID: ${text}`);
+        const response = await fetch("http://localhost:5000/getcomplaint", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ trackingId: text })
         });
-        const data = await response.json();
-        const complaints = Array.isArray(data) ? data : [data];
-        const complaintStatus = data.data.map(complaint => {
-          return `
-        Complaint ID: ${complaint.trackingId}
-        Status:
-        - Police Assigned: ${complaint.PoliceAssigned ? '✅' : '❌'}
-        - Police Dispatched: ${complaint.PoliceDispatched ? '✅' : '❌'}
-        - Police Arrived: ${complaint.PoliceArrived ? '✅' : '❌'}
-        - Resolved: ${complaint.Resolved ? '✅' : '❌'}
 
-        Location: ${complaint.locationAddress}
-        Description: ${complaint.description}
-        Contact: ${complaint.contactName} (${complaint.contactEmail})
-        Created: ${new Date(complaint.createdAt).toLocaleString()}
-          `;
-        }).join('\n\n');
+        const result = await response.json();
 
-        // let complaints = [];
+        if (!result.data || result.error) {
+          return bot.sendMessage(chatId, "❌ Complaint not found.");
+        }
 
-        // if (data.error) {
-        //   throw new Error(data.error);
-        // } else if (data.data) {
-        //   complaints = Array.isArray(data.data) ? data.data : [data.data];
-          
-        //    const formattedComplaints = complaints.map(rawComplaint => {
-        //            let complaint;
-               
-        //            // Parse the string to an actual object
-        //            try {
-        //              // Replace backticks or incorrect quotes if needed
-        //              const sanitized = rawComplaint
-        //                .replace(/`/g, '')               // Remove backticks
-        //                .replace(/'/g, '"');             // Replace single quotes with double quotes
-               
-        //              complaint = JSON.parse(sanitized);
-        //            } catch (err) {
-        //              console.error('Failed to parse complaint:', rawComplaint, err);
-        //              return 'Error parsing complaint.';
-        //            }
-               
-        //            return Object.entries(complaint)
-        //              .map(([key, value]) => `${key}: ${value}`)
-        //              .join('\n');
-        //          }).join('\n\n---\n\n');
-               
-        //          bot.sendMessage(chatId, `Your complaints:\n\n${formattedComplaints}`);
-        // }
+        const complaint = Array.isArray(result.data) ? result.data[0] : result.data;
 
-        // if (!complaints.length) {
-        //   bot.sendMessage(chatId, "You have no complaints.");
-        // } else {
-        //   const formatted = complaints
-        //     .map((c, i) => `🔹 ID: ${c.id} - ${c.title || "No Title"}`)
-        //     .join("\n");
-        //   bot.sendMessage(chatId, `📄 Complaints:\n\n${formatted}`);
-        // }
+        const {
+          trackingId,
+          locationAddress,
+          description,
+          contactName,
+          contactEmail,
+          createdAt,
+          PoliceAssigned,
+          PoliceDispatched,
+          PoliceArrived,
+          Resolved,
+          ipfsHash
+        } = complaint;
+
+        const message = `🆔 Complaint ID: ${trackingId}
+📍 Location: ${locationAddress}
+📄 Description: ${description}
+📞 Contact: ${contactName} (${contactEmail})
+🕒 Created: ${new Date(createdAt).toLocaleString()}
+
+✅ Status:
+- Police Assigned: ${PoliceAssigned ? '✅' : '❌'}
+- Police Dispatched: ${PoliceDispatched ? '✅' : '❌'}
+- Police Arrived: ${PoliceArrived ? '✅' : '❌'}
+- Resolved: ${Resolved ? '✅' : '❌'}
+${ipfsHash ? `\n🔗 View Evidence: https://ipfs.io/ipfs/${ipfsHash}` : ""}`;
+
+        bot.sendMessage(chatId, message);
       } catch (err) {
-        bot.sendMessage(chatId, "⚠️ Error tracking complaint."+err);
+        console.error("❌ Tracking Error:", err.message);
+        bot.sendMessage(chatId, "⚠️ Could not retrieve complaint status.");
       }
 
-      // Go back to main menu
       state.step = "MAIN_MENU";
       break;
 
     default:
-      bot.sendMessage(chatId, "❓ Unexpected input. Try again.");
+      bot.sendMessage(chatId, "❓ I didn’t understand that. Please try again.");
       break;
   }
+});
+
+// Handle polling errors
+bot.on("polling_error", (err) => {
+  console.error("❌ Polling Error:", err.code, err.message);
 });

@@ -256,7 +256,7 @@ export default function TaskDetailPage() {
         <div className="container flex h-16 items-center px-4 md:px-6">
           <div className="flex items-center gap-2">
             <Shield className="h-6 w-6 text-primary" />
-            <span className="text-xl font-bold">KTUN</span>
+            <span className="text-xl font-bold">YoCop</span>
           </div>
           <Button variant="ghost" size="icon" asChild className="ml-4">
             <Link href="/police/dashboard">
@@ -443,7 +443,7 @@ function LoadingState() {
     <div className="min-h-screen flex flex-col items-center justify-center bg-background p-4">
       <div className="flex items-center gap-2 mb-8">
         <Shield className="h-8 w-8 text-primary" />
-        <span className="text-2xl font-bold">KTUN</span>
+        <span className="text-2xl font-bold">YoCop</span>
       </div>
       <Card className="w-full max-w-3xl">
         <CardContent className="flex flex-col items-center justify-center py-12">
@@ -460,7 +460,7 @@ function ErrorState({ taskId }: { taskId: string }) {
     <div className="min-h-screen flex flex-col items-center justify-center bg-background p-4">
       <div className="flex items-center gap-2 mb-8">
         <Shield className="h-8 w-8 text-primary" />
-        <span className="text-2xl font-bold">KTUN</span>
+        <span className="text-2xl font-bold">YoCop</span>
       </div>
       <Card className="w-full max-w-3xl">
         <CardContent className="flex flex-col items-center justify-center py-12">

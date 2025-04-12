@@ -122,7 +122,7 @@ export default function UserDashboardPage() {
         <div className="container flex h-16 items-center px-4 md:px-6">
           <div className="flex items-center gap-2">
             <Shield className="h-6 w-6 text-primary" />
-            <span className="text-xl font-bold">KTUN</span>
+            <span className="text-xl font-bold">YoCop</span>
           </div>
           <nav className="ml-auto flex items-center gap-4 sm:gap-6">
             <Button variant="ghost" size="icon">

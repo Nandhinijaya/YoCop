@@ -1,36 +1,41 @@
-import { NextResponse } from 'next/server';
-import { PinataSDK } from "pinata-web3";
+const express = require("express");
+const multer = require("multer");
+const fs = require("fs");
+const axios = require("axios");
 
-const pinata = new PinataSDK({
-    pinataJwt: process.env.PINATA_JWT,
-    pinataGateway: process.env.PINATA_GATEWAY
-});
+const app = express();
+const upload = multer({ dest: "uploads/" });
 
-export async function POST(request) {
-    try {
-        const data = await request.json();
-        
-        const file = new File(
-            [JSON.stringify(data)],
-            "data.json",
-            { type: "application/json" }
-        );
-        
-        const upload = await pinata.upload.file(file);
-        
-        return NextResponse.json({ 
-            success: true, 
-            ipfsHash: upload.IpfsHash 
-        });
+app.post("/api/upload", upload.single("audio"), async (req, res) => {
+  const filePath = req.file.path;
 
-    } catch (error) {
-        return NextResponse.json(
-            { success: false, error: error.message },
-            { status: 500 }
-        );
+  // 1. Send audio to OpenAI Whisper or another API
+  const audioData = fs.createReadStream(filePath);
+
+  const whisperRes = await axios.post(
+    "https://api.openai.com/v1/audio/transcriptions",
+    audioData,
+    {
+      headers: {
+        Authorization: `Bearer YOUR_OPENAI_API_KEY`,
+        "Content-Type": "audio/wav",
+      },
     }
-}
+  );
 
-export async function GET() {
-    return NextResponse.json({ status: 'API is running' });
-}
+  const transcription = whisperRes.data.text;
+
+  // 2. Send transcription to Telegram
+  const chatId = "YOUR_TELEGRAM_CHAT_ID"; // Replace this
+  const botToken = "YOUR_BOT_TOKEN";
+
+  await axios.post(
+    `https://api.telegram.org/bot${botToken}/sendMessage`,
+    {
+      chat_id: chatId,
+      text: `📞 Call transcription:\n${transcription}`,
+    }
+  );
+
+  res.send({ status: "success", transcription });
+});

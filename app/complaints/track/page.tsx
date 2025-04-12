@@ -33,7 +33,7 @@ export default function TrackComplaintPage() {
     <div className="min-h-screen flex flex-col items-center justify-center bg-background p-4">
       <div className="flex items-center gap-2 mb-8">
         <Shield className="h-8 w-8 text-primary" />
-        <span className="text-2xl font-bold">KTUN</span>
+        <span className="text-2xl font-bold">YoCop</span>
       </div>
 
       <Card className="w-full max-w-md">

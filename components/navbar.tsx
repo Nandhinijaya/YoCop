@@ -1,177 +1,131 @@
 "use client"
 
 import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { useState, useEffect, JSX } from "react"
+import { useState, useEffect } from "react"
 import { Menu, Shield, X } from "lucide-react"
-import { ethers, N } from "ethers"
-import PoliceWalletManager from "../src/contracts/PoliceWalletManager.sol/PoliceWalletManager.json"
+import { Button } from "@/components/ui/button"
 
 declare global {
   interface Window {
-    ethereum: any;
+    ethereum?: any
   }
 }
 
-const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS||"";
-
-export  function Navbar() {
+export function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [currentAccount, setCurrentAccount] = useState("")
-  const [userRole, setUserRole] = useState<"owner" | "police" | "citizen" | null>(null)
-  const [loading, setLoading] = useState(false)
 
-  useEffect(() => {
-    const initialize = async () => {
-      if (typeof window.ethereum !== "undefined" && CONTRACT_ADDRESS) {
-        try {
-          const accounts = await window.ethereum.request({ method: "eth_accounts" })
-          if (accounts.length > 0) {
-            await checkUserRole(accounts[0])
-            console.log("User role:", userRole)
-          }
-        } catch (error) {
-          console.error("Initial connection error:", error)
-        }
-      }
-    }
-    initialize()
-  }, [])
-
-  const checkUserRole = async (address: string) => {
-    if (!CONTRACT_ADDRESS) {
-      console.error("Contract address not configured")
+  const connectWallet = async () => {
+    if (!window.ethereum) {
+      alert("Please install MetaMask to use this feature.")
       return
     }
 
     try {
-      setLoading(true)
-      const provider = new ethers.BrowserProvider(window.ethereum)
-      const contract = new ethers.Contract(
-        CONTRACT_ADDRESS,
-        PoliceWalletManager.abi,
-        provider
-      )
-
-      // Verify contract connection
-      const owner = await contract.owner()
-      if (!ethers.isAddress(owner)) {
-        throw new Error("Invalid owner address returned from contract")
-      }
-
-      const isPolice = await contract.isPolice(address)
-      
-      setCurrentAccount(address)
-      setUserRole(address.toLowerCase() === owner.toLowerCase() ? "owner" : isPolice ? "police" : "citizen")
-      
-    } catch (error) {
-      console.error("Role check failed:", error)
-      alert("Error connecting to contract. Please check network and try again.")
-      setUserRole(null)
-      setCurrentAccount("")
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleLogin = async () => {
-    if (typeof window.ethereum === "undefined") {
-      alert("Please install MetaMask!")
-      return
-    }
-
-    if (!CONTRACT_ADDRESS) {
-      alert("Contract not configured")
-      return
-    }
-
-    try {
-      setLoading(true)
-      const accounts = await window.ethereum.request({
-        method: "eth_requestAccounts",
-      })
-      
-      await checkUserRole(accounts[0])
-      redirectToDashboard()
+      const accounts = await window.ethereum.request({ method: "eth_requestAccounts" })
+      setCurrentAccount(accounts[0])
     } catch (error) {
       console.error("Connection error:", error)
-      alert("Wallet connection failed. Please try again.")
-    } finally {
-      setLoading(false)
+      alert("Wallet connection failed.")
     }
   }
 
-  const redirectToDashboard = () => {
-    if (!userRole) return
-    
-    const routes = {
-      owner: "/owner/dashboard",
-      police: "/police/dashboard",
-      citizen: "/user/dashboard"
-    }
-    
-    window.location.href = routes[userRole]
+  const handleLogout = () => {
+    setCurrentAccount("")
   }
 
-return(
-  <header className="border-b border-[#F3F3F3]">
-  <div className="container mx-auto flex h-20 items-center justify-between px-4 md:px-6">
-  
-    <Link href="/" className="flex items-center gap-2">
-    <Shield className="h-6 w-6 text-primary" />
-      <span className="text-2xl font-bold text-[#191A23]">KTUN</span>
-    </Link>
+  useEffect(() => {
+    if (!window.ethereum) return
 
-    {/* Mobile menu button */}
-    <button className="md:hidden" onClick={() => setIsMenuOpen(!isMenuOpen)}>
-      {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
-    </button>
+    const handleAccountsChanged = (accounts: string[]) => {
+      if (accounts.length > 0) {
+        setCurrentAccount(accounts[0])
+      } else {
+        setCurrentAccount("")
+      }
+    }
 
-    {/* Desktop navigation */}
-    <nav className="hidden md:flex items-center gap-6">
-      <Link href="/complaints/new" className="text-[#191A23] hover:text-[#B9FF66] transition-colors">
-        Create Complaint
-      </Link>
-      <Link href="/complaints/track" className="text-[#191A23] hover:text-[#B9FF66] transition-colors">
-        Track Complaint
-      </Link>
-      <Button
-    variant="outline"
-    onClick={handleLogin}
-    className="border-[#191A23] text-[#191A23] hover:bg-[#B9FF66] hover:text-[#191A23] hover:border-[#B9FF66]"
-  >
-    {currentAccount ? `${currentAccount.slice(0, 6)}...` : "Login"}
-  </Button>
-    </nav>
+    const handleChainChanged = () => {
+      window.location.reload()
+    }
 
-    {/* Mobile navigation */}
-    {isMenuOpen && (
-      <div className="absolute top-20 left-0 right-0 bg-white z-50 border-b border-[#F3F3F3] md:hidden">
-        <div className="flex flex-col p-4 space-y-4">
-          <Link href="/about" className="text-[#191A23] hover:text-[#B9FF66] transition-colors">
-            About us
+    window.ethereum.on("accountsChanged", handleAccountsChanged)
+    window.ethereum.on("chainChanged", handleChainChanged)
+
+    return () => {
+      if (window.ethereum.removeListener) {
+        window.ethereum.removeListener("accountsChanged", handleAccountsChanged)
+        window.ethereum.removeListener("chainChanged", handleChainChanged)
+      }
+    }
+  }, [])
+
+  return (
+    <header className="border-b border-gray-700 bg-[#0F0F10]">
+      <div className="container mx-auto flex h-20 items-center justify-between px-4 md:px-6">
+        <Link href="/" className="flex items-center gap-2">
+          <Shield className="h-6 w-6 text-[#B9FF66]" />
+          <span className="text-3xl font-bold text-white">YoCop</span>
+        </Link>
+
+        <button className="md:hidden text-white" onClick={() => setIsMenuOpen(!isMenuOpen)}>
+          {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
+        </button>
+
+        <nav className="hidden md:flex items-center gap-6">
+          <Link href="/complaints/track" className="text-gray-300 hover:text-[#B9FF66] transition-colors">
+            Track Complaint
           </Link>
-          <Link href="/services" className="text-[#191A23] hover:text-[#B9FF66] transition-colors">
-            Services
-          </Link>
-          <Link href="/use-cases" className="text-[#191A23] hover:text-[#B9FF66] transition-colors">
-            Use Cases
-          </Link>
-          <Link href="/pricing" className="text-[#191A23] hover:text-[#B9FF66] transition-colors">
-            Pricing
-          </Link>
-          <Link href="/blog" className="text-[#191A23] hover:text-[#B9FF66] transition-colors">
-            Blog
-          </Link>
-          <Button
-            variant="outline"
-            className="border-[#191A23] text-[#191A23] hover:bg-[#B9FF66] hover:text-[#191A23] hover:border-[#B9FF66]"
-          >
-            Request a quote
-          </Button>
-        </div>
+
+          {currentAccount ? (
+            <>
+              <span className="text-white text-sm font-medium">
+                {currentAccount.slice(0, 6)}...{currentAccount.slice(-4)}
+              </span>
+              <Button
+                variant="ghost"
+                onClick={handleLogout}
+                className="text-white hover:text-[#B9FF66] ml-2"
+              >
+                Logout
+              </Button>
+            </>
+          ) : (
+            <Button
+              variant="outline"
+              onClick={connectWallet}
+              className="border-gray-400 hover:bg-[#B9FF66] hover:text-[#0F0F10] hover:border-[#B9FF66] text-black"
+            >
+              Login
+            </Button>
+          )}
+        </nav>
+
+        {isMenuOpen && (
+          <div className="absolute top-20 left-0 right-0 bg-[#1A1A1D] z-50 border-b border-gray-700 md:hidden">
+            <div className="flex flex-col p-4 space-y-4">
+              <Link href="/about" className="text-gray-300 hover:text-[#B9FF66] transition-colors">About us</Link>
+              <Link href="/services" className="text-gray-300 hover:text-[#B9FF66] transition-colors">Services</Link>
+              <Link href="/use-cases" className="text-gray-300 hover:text-[#B9FF66] transition-colors">Use Cases</Link>
+              <Link href="/pricing" className="text-gray-300 hover:text-[#B9FF66] transition-colors">Pricing</Link>
+              <Link href="/blog" className="text-gray-300 hover:text-[#B9FF66] transition-colors">Blog</Link>
+              {currentAccount ? (
+                <span className="text-white text-sm">
+                  {currentAccount.slice(0, 6)}...{currentAccount.slice(-4)}
+                </span>
+              ) : (
+                <Button
+                  variant="outline"
+                  onClick={connectWallet}
+                  className="border-gray-400 text-white hover:bg-[#B9FF66] hover:text-[#0F0F10] hover:border-[#B9FF66]"
+                >
+                  Login
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
-    )}
-  </div>
-</header>
-)}
+    </header>
+  )
+}

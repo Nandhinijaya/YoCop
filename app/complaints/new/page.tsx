@@ -31,6 +31,7 @@ export default function NewComplaintPage() {
   const { addComplaint } = useComplaintStore()
   const [evidenceFiles, setEvidenceFiles] = useState<File[]>([]);
 const [evidenceDescription, setEvidenceDescription] = useState('');
+const [walletAddress, setWalletAddress] = useState<string | null>(null);
 
   const handleNext = () => {
     setStep(step + 1)
@@ -65,6 +66,7 @@ const [evidenceDescription, setEvidenceDescription] = useState('');
       );
   
       // 2. Create complete complaint object
+      
       const trackingId = `COMP-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
       const complaintData = {
         trackingId,
@@ -169,7 +171,7 @@ const [evidenceDescription, setEvidenceDescription] = useState('');
           </Link>
           <div className="flex items-center gap-2 ml-4">
             <Shield className="h-6 w-6 text-primary" />
-            <span className="text-xl font-bold">KTUN</span>
+            <span className="text-xl font-bold">YoCop</span>
           </div>
         </div>
       </header>
